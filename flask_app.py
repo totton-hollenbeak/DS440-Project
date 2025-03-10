@@ -80,7 +80,7 @@ def generate_gradcam_image(image_path):
     target_layers = [model.layer4[-1]]
     input_tensor = preprocess_data(grad_cam_image)
 
-    labels = [6]
+    labels = [i for i in range(0, 14)]
     targets = [ClassifierOutputTarget(label) for label in labels]
 
     with GradCAM(model=model, target_layers=target_layers) as cam:
