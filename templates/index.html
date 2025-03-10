@@ -42,7 +42,6 @@
                 resize: none;
             }
 
-            /* Button Styling */
             .btn {
                 padding: 10px;
                 width: 100%;
@@ -75,27 +74,19 @@
             .slider {
                 width: 100%;
             }
-
-            .reset-btn {
-                background-color: #28a745;
-            }
-
-            .reset-btn:hover {
-                background-color: #218838;
-            }
         </style>
 
         <script>
             function toggleImage() {
                 var original = document.getElementById("original-img");
-                var grayscale = document.getElementById("grayscale-img");
+                var gradcam = document.getElementById("gradcam-img");
 
                 if (original.style.display === "none") {
                     original.style.display = "block";
-                    grayscale.style.display = "none";
+                    gradcam.style.display = "none";
                 } else {
                     original.style.display = "none";
-                    grayscale.style.display = "block";
+                    gradcam.style.display = "block";
                 }
             }
 
@@ -103,10 +94,10 @@
                 var brightness = document.getElementById("brightness").value;
                 var contrast = document.getElementById("contrast").value;
                 var original = document.getElementById("original-img");
-                var grayscale = document.getElementById("grayscale-img");
+                var gradcam = document.getElementById("gradcam-img");
 
                 original.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
-                grayscale.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                gradcam.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
             }
 
             function resetBrightness() {
@@ -118,44 +109,51 @@
                 document.getElementById("contrast").value = 100;
                 updateFilters();
             }
+
+            function analyzeImage() {
+                document.getElementById('analyze-form').submit();
+            }
         </script>
     </head>
     <body>
-        <h1>Image Upload and Preview</h1>
+        <h1>X-RAY DL: A TOOL FOR PREDICTING DIAGNOSES OF X-RAYS USING DEEP LEARNING</h1>
 
         <div class="container">
-            <!-- Left Sidebar (Buttons & Sliders) -->
             <div class="sidebar">
                 <form action="/" method="post" enctype="multipart/form-data">
                     <input type="file" name="file" required>
+                    <br><br>
                     <input type="submit" class="btn" value="Upload">
                 </form>
 
-                <button class="btn" onclick="toggleImage()">Toggle Grayscale</button>
+                <button class="btn" onclick="analyzeImage()">Analyze Image</button>
 
-                <!-- Sliders for Brightness & Contrast -->
+                <button class="btn" onclick="toggleImage()">Toggle GRAD-CAM Overlay</button>
+
                 <div class="slider-container">
                     <label for="brightness">Brightness</label>
                     <input type="range" id="brightness" class="slider" min="50" max="200" value="100" oninput="updateFilters()">
-                    <button class="btn reset-btn" onclick="resetBrightness()">Reset Brightness</button>
+                    <button class="btn" onclick="resetBrightness()">Reset Brightness</button>
                     
                     <label for="contrast">Contrast</label>
                     <input type="range" id="contrast" class="slider" min="50" max="200" value="100" oninput="updateFilters()">
-                    <button class="btn reset-btn" onclick="resetContrast()">Reset Contrast</button>
+                    <button class="btn" onclick="resetContrast()">Reset Contrast</button>
                 </div>
             </div>
 
-            <!-- Image Preview Section -->
             <div class="preview">
                 {% if filename %}
-                    <h2>Uploaded Image:</h2>
                     <img id="original-img" src="{{ url_for('send_uploaded_file', filename=filename) }}" alt="Original Image">
-                    <img id="grayscale-img" src="{{ url_for('send_uploaded_file', filename='gray_' + filename) }}" alt="Grayscale Image" style="display: none;">
+                    <img id="gradcam-img" src="{{ url_for('send_uploaded_file', filename=gradcam_filename) }}" alt="Grad-CAM Image" style="display: none;">
                 {% endif %}
             </div>
         </div>
 
-        <!-- Textbox for Displaying Messages -->
-        <textarea class="textbox" placeholder="Logs and messages will appear here..."></textarea>
+        <textarea class="textbox" placeholder="Logs and messages will appear here...">{{ message }}</textarea>
+
+        <form id="analyze-form" action="{{ url_for('analyze_image') }}" method="post" style="display: none;">
+            <input type="hidden" name="filename" value="{{ filename }}">
+            <input type="hidden" name="gradcam_filename" value="{{ gradcam_filename }}">
+        </form>
     </body>
 </html>
