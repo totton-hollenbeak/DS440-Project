@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from io import BytesIO
 import base64
+import cv2
 
 app = Flask(__name__)
 
@@ -22,9 +23,16 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT, progress=True)
+data_transform = transforms.Compose([
+    transforms.Grayscale(num_output_channels=3),
+    transforms.Resize((224, 224), interpolation=Image.NEAREST),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5])
+])
+
+model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT, progress=True)
 model.fc = nn.Linear(model.fc.in_features, 14, bias=True)
-model.load_state_dict(torch.load("best_transfer_learning_model.pth", weights_only=True))
+model.load_state_dict(torch.load("best_transfer_learning_model_1.pth", weights_only=True))
 model.eval()
 
 labels = {
@@ -44,53 +52,46 @@ labels = {
     13: "Hernia"
 }
 
-# Preprocessing function
+
+
 def preprocess_data(image):
-    preprocess = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.Grayscale(num_output_channels=3),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    transformed_images = []
 
-    image = np.float32(image) / 255.0
-    image = Image.fromarray(image)
-    transformed_image = preprocess(image)
+    img = Image.fromarray(image.astype(np.uint8))
+    transformed_img = data_transform(img)
+    transformed_images.append(transformed_img)
 
-    return transformed_image.unsqueeze(0)
+    return torch.stack(transformed_images)
 
 def predict(image_tensor):
     with torch.no_grad():
         outputs = model(image_tensor)
         predicted = torch.sigmoid(outputs)
         predicted = predicted.squeeze().cpu().numpy()
-        
-        label_keys = list(labels.keys())
         label_values = list(labels.values())
         print(predicted)
-        predicted_label_keys = [label_keys[i] for i in range(len(predicted)) if predicted[i] > 0.001]
-        predicted_labels = [label_values[i] for i in range(len(predicted)) if predicted[i] > 0.001]
-        return predicted_labels, predicted_label_keys
+        predicted_labels = [label_values[i] for i in range(len(predicted)) if predicted[i] > 0.15]
+        return predicted_labels
     
 def generate_gradcam_image(image_path):
-    example_image = Image.open(image_path).convert("L")
-    grad_cam_image = np.float32(example_image) / 255.0
-    grad_cam_image = Image.fromarray(grad_cam_image)
+    model.load_state_dict(torch.load("best_transfer_learning_model_1.pth", weights_only=True))
+    model.eval()
 
     target_layers = [model.layer4[-1]]
-    input_tensor = preprocess_data(grad_cam_image)
 
-    labels = [i for i in range(0, 14)]
-    targets = [ClassifierOutputTarget(label) for label in labels]
+    image = Image.open(image_path).convert("RGB")
+    input_tensor = data_transform(image).unsqueeze(0)
+
+    targets = [ClassifierOutputTarget(0)]
 
     with GradCAM(model=model, target_layers=target_layers) as cam:
         grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
         grayscale_cam = grayscale_cam[0, :]
 
-        img = example_image.resize((224, 224))
-        img = np.float32(img) / 255.0
-        img = np.repeat(img[..., np.newaxis], 3, axis=-1)
-        visualization = show_cam_on_image(img, grayscale_cam, use_rgb=True)
+        rgb_img = np.array(image) / 255.0
+        rgb_img = cv2.resize(rgb_img, (224, 224))
+
+        visualization = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
 
     pil_img = Image.fromarray((visualization * 255).astype(np.uint8)).resize((1024, 1024))
     buffered = BytesIO()
@@ -127,11 +128,11 @@ def analyze_image():
     filename = request.form.get('filename')
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
-    image = Image.open(filepath).convert("L")
-    numpy_image = np.float32(image) / 255.0
+    image = Image.open(filepath).convert("RGB")
+    numpy_image = np.array(image)
     preprocessed_image = preprocess_data(numpy_image)
     
-    predicted_labels, predicted_label_keys = predict(preprocessed_image)
+    predicted_labels = predict(preprocessed_image)
     
     if predicted_labels == []:
         predicted_labels = ["No Finding"]
