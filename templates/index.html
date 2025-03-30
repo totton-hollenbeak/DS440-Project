@@ -74,30 +74,67 @@
             .slider {
                 width: 100%;
             }
+
+            .gradcam-img {
+                max-width: 500px;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                padding: 5px;
+                margin-top: 10px;
+                display: none; /* Initially hide Grad-CAM images */
+            }
         </style>
 
         <script>
-            function toggleImage() {
-                var original = document.getElementById("original-img");
-                var gradcam = document.getElementById("gradcam-img");
+            let isGradCamVisible = false; // Track whether Grad-CAM image is visible
 
-                if (original.style.display === "none") {
-                    original.style.display = "block";
-                    gradcam.style.display = "none";
+            function toggleImage() {
+                const originalImage = document.getElementById("original-img");
+                const selectedDiagnosis = document.getElementById("diagnosis").value;
+                const gradcamImages = document.querySelectorAll(".gradcam-img");
+
+                if (isGradCamVisible) {
+                    // Show the original image and hide all Grad-CAM images
+                    originalImage.style.display = "block";
+                    gradcamImages.forEach(img => img.style.display = "none");
+                    isGradCamVisible = false;
                 } else {
-                    original.style.display = "none";
-                    gradcam.style.display = "block";
+                    // Hide the original image and show the selected Grad-CAM image
+                    originalImage.style.display = "none";
+                    const selectedGradCam = document.getElementById("gradcam-" + selectedDiagnosis);
+                    if (selectedGradCam) {
+                        selectedGradCam.style.display = "block";
+                    }
+                    isGradCamVisible = true;
+                }
+            }
+
+            function handleDiagnosisChange() {
+                if (isGradCamVisible) {
+                    const selectedDiagnosis = document.getElementById("diagnosis").value;
+                    const gradcamImages = document.querySelectorAll(".gradcam-img");
+
+                    // Hide all Grad-CAM images
+                    gradcamImages.forEach(img => img.style.display = "none");
+
+                    // Show the selected Grad-CAM image
+                    const selectedGradCam = document.getElementById("gradcam-" + selectedDiagnosis);
+                    if (selectedGradCam) {
+                        selectedGradCam.style.display = "block";
+                    }
                 }
             }
 
             function updateFilters() {
-                var brightness = document.getElementById("brightness").value;
-                var contrast = document.getElementById("contrast").value;
-                var original = document.getElementById("original-img");
-                var gradcam = document.getElementById("gradcam-img");
+                const brightness = document.getElementById("brightness").value;
+                const contrast = document.getElementById("contrast").value;
+                const original = document.getElementById("original-img");
+                const gradcamImages = document.querySelectorAll(".gradcam-img");
 
                 original.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
-                gradcam.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                gradcamImages.forEach(img => {
+                    img.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                });
             }
 
             function resetBrightness() {
@@ -128,7 +165,27 @@
 
                 <button class="btn" onclick="analyzeImage()">Analyze Image</button>
 
-                <button class="btn" onclick="toggleImage()">Toggle GRAD-CAM Overlay</button>
+                <div class="slider-container">
+                    <label for="diagnosis">Select Diagnosis Category:</label>
+                    <select id="diagnosis" class="btn" onchange="handleDiagnosisChange()">
+                        <option value="0">Atelectasis</option>
+                        <option value="1">Cardiomegaly</option>
+                        <option value="2">Effusion</option>
+                        <option value="3">Infiltration</option>
+                        <option value="4">Mass</option>
+                        <option value="5">Nodule</option>
+                        <option value="6">Pneumonia</option>
+                        <option value="7">Pneumothorax</option>
+                        <option value="8">Consolidation</option>
+                        <option value="9">Edema</option>
+                        <option value="10">Emphysema</option>
+                        <option value="11">Fibrosis</option>
+                        <option value="12">Pleural</option>
+                        <option value="13">Hernia</option>
+                    </select>
+                </div>
+
+                <button class="btn" onclick="toggleImage()">Toggle Visualization Overlay</button>
 
                 <div class="slider-container">
                     <label for="brightness">Brightness</label>
@@ -144,7 +201,9 @@
             <div class="preview">
                 {% if filename %}
                     <img id="original-img" src="{{ url_for('send_uploaded_file', filename=filename) }}" alt="Original Image">
-                    <img id="gradcam-img" src="{{ url_for('send_uploaded_file', filename=gradcam_filename) }}" alt="Grad-CAM Image" style="display: none;">
+                    {% for gradcam_filename in gradcam_filenames %}
+                        <img id="gradcam-{{ loop.index0 }}" class="gradcam-img" src="{{ url_for('send_uploaded_file', filename=gradcam_filename) }}" alt="Grad-CAM Image">
+                    {% endfor %}
                 {% endif %}
             </div>
         </div>

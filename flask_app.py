@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 from torchvision.transforms import transforms
-from pytorch_grad_cam import GradCAM, HiResCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
+from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 import matplotlib.pyplot as plt
@@ -30,9 +30,9 @@ data_transform = transforms.Compose([
     transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 
-model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT, progress=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT, progress=True)
 model.fc = nn.Linear(model.fc.in_features, 14, bias=True)
-model.load_state_dict(torch.load("best_transfer_learning_model_1.pth", weights_only=True))
+model.load_state_dict(torch.load("best_transfer_learning_model_final.pth", weights_only=True))
 model.eval()
 
 labels = {
@@ -52,53 +52,40 @@ labels = {
     13: "Hernia"
 }
 
-
-
 def preprocess_data(image):
-    transformed_images = []
-
     img = Image.fromarray(image.astype(np.uint8))
     transformed_img = data_transform(img)
-    transformed_images.append(transformed_img)
-
-    return torch.stack(transformed_images)
+    return transformed_img.unsqueeze(0)
 
 def predict(image_tensor):
     with torch.no_grad():
         outputs = model(image_tensor)
-        predicted = torch.sigmoid(outputs)
-        predicted = predicted.squeeze().cpu().numpy()
-        label_values = list(labels.values())
-        print(predicted)
-        predicted_labels = [label_values[i] for i in range(len(predicted)) if predicted[i] > 0.15]
-        return predicted_labels
-    
-def generate_gradcam_image(image_path):
-    model.load_state_dict(torch.load("best_transfer_learning_model_1.pth", weights_only=True))
-    model.eval()
+        predicted = torch.sigmoid(outputs).squeeze().cpu().numpy()
+        predicted_labels = [labels[i] for i in range(len(predicted)) if predicted[i] > 0.15]
+        return predicted_labels if predicted_labels else ["No Finding"]
 
+def generate_gradcam_images(image_path):
     target_layers = [model.layer4[-1]]
-
     image = Image.open(image_path).convert("RGB")
     input_tensor = data_transform(image).unsqueeze(0)
 
-    targets = [ClassifierOutputTarget(0)]
+    gradcam_filenames = []
 
-    with GradCAM(model=model, target_layers=target_layers) as cam:
-        grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
-        grayscale_cam = grayscale_cam[0, :]
+    for i in range(14):
+        targets = [ClassifierOutputTarget(i)]
+        with GradCAM(model=model, target_layers=target_layers) as cam:
+            grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0, :]
+            rgb_img = np.array(image) / 255.0
+            rgb_img = cv2.resize(rgb_img, (224, 224))
+            visualization = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
 
-        rgb_img = np.array(image) / 255.0
-        rgb_img = cv2.resize(rgb_img, (224, 224))
+        pil_img = Image.fromarray((visualization).astype(np.uint8)).resize((1024, 1024))
+        gradcam_filename = f'gradcam_{labels[i]}_{os.path.basename(image_path)}'
+        gradcam_filepath = os.path.join(app.config['UPLOAD_FOLDER'], gradcam_filename)
+        pil_img.save(gradcam_filepath)
+        gradcam_filenames.append(gradcam_filename)
 
-        visualization = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-
-    pil_img = Image.fromarray((visualization * 255).astype(np.uint8)).resize((1024, 1024))
-    buffered = BytesIO()
-    pil_img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    
-    return img_str
+    return gradcam_filenames
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -106,17 +93,13 @@ def allowed_file(filename):
 @app.route('/', methods=['GET', 'POST'])
 def upload_and_display():
     if request.method == 'POST':
-        if 'file' not in request.files:
-            return render_template('index.html', error="No file part")
+        if 'file' not in request.files or request.files['file'].filename == '':
+            return render_template('index.html', error="No file uploaded.")
         file = request.files['file']
-        if file.filename == '':
-            return render_template('index.html', error="No selected file")
-        if file and allowed_file(file.filename):
+        if allowed_file(file.filename):
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(filepath)
-
             return render_template('index.html', filename=file.filename, message="Upload successful! Please click 'Analyze' to predict.")
-
     return render_template('index.html', filename=None)
 
 @app.route('/uploads/<filename>')
@@ -133,20 +116,10 @@ def analyze_image():
     preprocessed_image = preprocess_data(numpy_image)
     
     predicted_labels = predict(preprocessed_image)
-    
-    if predicted_labels == []:
-        predicted_labels = ["No Finding"]
-
     prediction_message = f"Predicted Labels: {', '.join(predicted_labels)}"
-    
-    gradcam_img_str = generate_gradcam_image(filepath)
-    gradcam_filename = 'gradcam_' + filename
-    gradcam_filepath = os.path.join(app.config['UPLOAD_FOLDER'], gradcam_filename)
-    
-    with open(gradcam_filepath, 'wb') as f:
-        f.write(base64.b64decode(gradcam_img_str))
-    
-    return render_template('index.html', filename=filename, gradcam_filename=gradcam_filename, message=prediction_message)
+    gradcam_filenames = generate_gradcam_images(filepath)
+
+    return render_template('index.html', filename=filename, gradcam_filenames=gradcam_filenames, message=prediction_message, labels=labels)
 
 if __name__ == '__main__':
     app.run(debug=True)
