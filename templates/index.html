@@ -81,12 +81,12 @@
                 border-radius: 5px;
                 padding: 5px;
                 margin-top: 10px;
-                display: none; /* Initially hide Grad-CAM images */
+                display: none;
             }
         </style>
 
         <script>
-            let isGradCamVisible = false; // Track whether Grad-CAM image is visible
+            let isGradCamVisible = false;
 
             function toggleImage() {
                 const originalImage = document.getElementById("original-img");
@@ -94,12 +94,10 @@
                 const gradcamImages = document.querySelectorAll(".gradcam-img");
 
                 if (isGradCamVisible) {
-                    // Show the original image and hide all Grad-CAM images
                     originalImage.style.display = "block";
                     gradcamImages.forEach(img => img.style.display = "none");
                     isGradCamVisible = false;
                 } else {
-                    // Hide the original image and show the selected Grad-CAM image
                     originalImage.style.display = "none";
                     const selectedGradCam = document.getElementById("gradcam-" + selectedDiagnosis);
                     if (selectedGradCam) {
@@ -114,10 +112,8 @@
                     const selectedDiagnosis = document.getElementById("diagnosis").value;
                     const gradcamImages = document.querySelectorAll(".gradcam-img");
 
-                    // Hide all Grad-CAM images
                     gradcamImages.forEach(img => img.style.display = "none");
 
-                    // Show the selected Grad-CAM image
                     const selectedGradCam = document.getElementById("gradcam-" + selectedDiagnosis);
                     if (selectedGradCam) {
                         selectedGradCam.style.display = "block";

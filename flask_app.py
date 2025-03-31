@@ -9,10 +9,6 @@ from torchvision.transforms import transforms
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from io import BytesIO
-import base64
 import cv2
 
 app = Flask(__name__)
