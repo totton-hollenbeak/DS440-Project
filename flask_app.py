@@ -16,8 +16,10 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 data_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=3),
@@ -85,6 +87,10 @@ def generate_gradcam_images(image_path):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.errorhandler(413)
+def too_large(e):
+    return render_template('index.html', error="File too large. Maximum size is 25MB."), 413
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_and_display():
